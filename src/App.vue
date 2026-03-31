@@ -15,12 +15,26 @@ L.Icon.Default.mergeOptions({
 
 // 變數
 let map = null
-let markers = []
+let markers = new Map()
 let pollingTimer = null
 let isPolling = true
 const selectedPosition = ref(null)
 let selectedMarker = null
-const shouldConsumeSelectedPosition = ref(false)
+
+// marker icon
+const defaultIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+})
+
+const selectedIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-orange.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+})
 
 // 點位資訊
 function buildPopupContent(event) {  
@@ -45,15 +59,31 @@ function clearMarkers() {
 
 // 事件渲染，遍歷"markers"中所有的點並加到map上
 function renderEvents(events) {
-  clearMarkers()
+  const nextKeys = new Set()
 
   events.forEach(event => {
-    const marker = L.marker([event.lat, event.lon])
-      .addTo(map)
-      .bindPopup(buildPopupContent(event))
+    const key = event.uid
+    nextKeys.add(key)
 
-    markers.push(marker)
+    if (!markers.has(key)) {
+      const marker = L.marker([event.lat, event.lon])
+        .addTo(map)
+        .bindPopup(buildPopupContent(event))
+
+      markers.set(key, marker)
+    } else {
+      const marker = markers.get(key)
+      marker.setLatLng([event.lat, event.lon])
+      marker.setPopupContent(buildPopupContent(event))
+    }
   })
+
+  for (const [key, marker] of markers.entries()) {
+    if (!nextKeys.has(key)) {
+      map.removeLayer(marker)
+      markers.delete(key)
+    }
+  }
 }
 
 // 事件更新
@@ -76,10 +106,9 @@ async function handleCreateEvent(eventData) {
   try {
     await createEvent(eventData)
 
-    if (shouldConsumeSelectedPosition.value) {
+    if (eventData.source === 'selected') {
       clearSelectedMarker()
       selectedPosition.value = null
-      shouldConsumeSelectedPosition.value = false
     }
 
     await refreshEvents()
@@ -152,18 +181,12 @@ function clearSelectedMarker() {
 }
 
 // 渲染selectedmarker，position來自map中的clickEvent
-function renderSelectedMarker(position) {
+function renderSelectedMarker(pos) {
   clearSelectedMarker()
 
-  selectedMarker = L.marker([position.lat, position.lon])
-    .addTo(map)
-    .bindPopup(`
-      <div>
-        <div><strong>Selected Position</strong></div>
-        <div>Lat: ${formatCoordinate(position.lat)}</div>
-        <div>Lon: ${formatCoordinate(position.lon)}</div>
-      </div>
-    `)
+  selectedMarker = L.marker([pos.lat, pos.lon], {
+    icon: selectedIcon
+  }).addTo(map)
 }
 
 
@@ -180,7 +203,7 @@ onMounted(async () => {
       lon: e.latlng.lng
     }
     renderSelectedMarker(selectedPosition.value)
-    shouldConsumeSelectedPosition.value = false
+
 
   })
   
@@ -195,9 +218,6 @@ onBeforeUnmount(() => {
 function handleUseSelectedPosition() {
   if (!selectedPosition.value) return
 
-
-  // 這裡才設 flag
-  shouldConsumeSelectedPosition.value = true
 }
 
 </script>

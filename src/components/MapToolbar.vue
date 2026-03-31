@@ -42,14 +42,17 @@ function handleTogglePolling() {
 }
 
 function handleCreateEvent() {
-  emit('create-event', {
+  const payload = {
     uid: form.value.uid,
     type: form.value.type,
     lat: Number(form.value.lat),
     lon: Number(form.value.lon),
     status: form.value.status,
-    label: form.value.label
-  })
+    label: form.value.label,
+    source: props.selectedPosition ? 'selected' : 'manual'
+  }
+
+  emit('create-event', payload)
 
   form.value = {
     uid: '',
