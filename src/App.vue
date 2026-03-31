@@ -51,26 +51,23 @@ function renderEvents(events) {
     nextKeys.add(key)
 
     if (!markers.has(key)) {
-      const marker = L.marker([event.lat, event.lon], {
-          icon: defaultIcon
-        })
+      const marker = L.marker([event.lat, event.lon])
+        .setIcon(defaultIcon)
         .addTo(map)
         .bindPopup(buildPopupContent(event, 'event'))
 
-        marker.on('click', () => {
-          handleEventMarkerClick(event)
-        })
+      marker._eventData = event
+
+      marker.on('click', () => {
+        handleEventMarkerClick(marker._eventData)
+      })
+
       markers.set(key, marker)
     } else {
       const marker = markers.get(key)
-      marker.setLatLng([event.lat, event.lon], {
-        icon: defaultIcon
-      })
+      marker.setLatLng([event.lat, event.lon]).setIcon(defaultIcon)
       marker.bindPopup(buildPopupContent(event, 'event'))
-
-      marker.on('click', () => {
-          handleEventMarkerClick(event)
-      })
+      marker._eventData = event
     }
   })
 
@@ -158,12 +155,10 @@ function clearSelectedMarker() {
 function renderSelectedMarker(pos) {
   clearSelectedMarker()
 
-  selectedMarker = L.marker([pos.lat, pos.lon], {
-    icon: selectedIcon
-  }).addTo(map).bindPopup(buildPopupContent(pos, 'selected'))
-  selectedMarker.on('click', () => {
-    handleEventMarkerClick('click')
-  })
+  selectedMarker = L.marker([pos.lat, pos.lon])
+  .setIcon(selectedIcon)
+  .addTo(map)
+  .bindPopup(buildPopupContent(pos, 'selected'))
 
 }
 

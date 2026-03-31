@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { formatCoordinate } from '../utils/coordinate'
 
 
@@ -40,6 +40,25 @@ const form = ref({
 })
 
 const usingSelectedPosition = ref(false)
+
+watch(
+  () => props.activeEvent,
+  (event) => {
+    if (!event) return
+
+    form.value = {
+      uid: event.uid ?? '',
+      type: event.type ?? 'friendly',
+      lat: event.lat ?? '',
+      lon: event.lon ?? '',
+      status: event.status ?? 'active',
+      label: event.label ?? ''
+    }
+
+    usingSelectedPosition.value = false
+  },
+  { immediate: true }
+)
 
 function toggleToolbar() {
   isCollapsed.value = !isCollapsed.value
@@ -86,11 +105,13 @@ function useSelectedPosition() {
   form.value.lon = formatCoordinate(props.selectedPosition.lon)
   usingSelectedPosition.value = true
 
-  emit('use-selected')
+  emit('use-selected', props.activeEvent)
 }
 
 function handleUpdate() {
-  emit('update-event', props.activeEvent)
+  emit('update-event', {
+    ...form.value
+  })
 }
 
 function handleDelete() {
@@ -120,8 +141,8 @@ function handleDelete() {
       
       <input v-model="form.uid" placeholder="UID" />
       <input v-model="form.label" placeholder="Label" />
-      <input v-model="form.lat" placeholder="Latitude" />
-      <input v-model="form.lon" placeholder="Longitude" />
+      <input v-model="form.lat" placeholder="Latitude" @input="usingSelectedPosition = false"/>
+      <input v-model="form.lon" placeholder="Longitude" @input="usingSelectedPosition = false"/>
 
       <select v-model="form.type">
         <option value="friendly">friendly</option>
