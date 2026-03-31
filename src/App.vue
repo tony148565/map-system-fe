@@ -162,7 +162,7 @@ function renderSelectedMarker(pos) {
     icon: selectedIcon
   }).addTo(map).bindPopup(buildPopupContent(pos, 'selected'))
   selectedMarker.on('click', () => {
-    handleEventMarkerClick(event)
+    handleEventMarkerClick('click')
   })
 
 }
@@ -208,6 +208,10 @@ function handleDeleteEvent(uid){
   console.log('[EVENT_CLICK] delete', uid)
   // TODO: call update API and refresh markers
 }
+
+function handleUseSelectedPosition() {
+  if (!selectedPosition.value) return
+}
 /*
 Interaction rules:
 1. Map click -> update selectedPosition
@@ -220,8 +224,10 @@ Interaction rules:
 <template>
   <div class="map-wrapper">
     <MapToolbar
+      :selected-position="selectedPosition"
       :active-event="activeEvent"
       :is-polling="isPolling"
+      @use-selected="handleUseSelectedPosition"
       @refresh-events="refreshEvents"
       @toggle-polling="togglePolling"
       @create-event="handleCreateEvent"

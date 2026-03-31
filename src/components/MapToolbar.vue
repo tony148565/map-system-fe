@@ -24,7 +24,8 @@ const emit = defineEmits([
   'toggle-polling',
   'create-event',
   'update-event',
-  'delete-event'
+  'delete-event',
+  'use-selected'
 ])
 
 const isCollapsed = ref(false)
@@ -80,7 +81,7 @@ function handleCreateEvent() {
 
 function useSelectedPosition() {
   if (!props.selectedPosition) return
-
+  console.log('[useSelectedPosition]')
   form.value.lat = formatCoordinate(props.selectedPosition.lat)
   form.value.lon = formatCoordinate(props.selectedPosition.lon)
   usingSelectedPosition.value = true
