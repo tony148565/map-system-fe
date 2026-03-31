@@ -4,7 +4,8 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { fetchEvents, createEvent } from './services/eventApi'
 import MapToolbar from './components/MapToolbar.vue'
-import { formatCoordinate } from './utils/coordinate'
+//import { formatCoordinate } from './utils/coordinate'
+import { buildPopupContent } from './utils/popup'
 delete L.Icon.Default.prototype._getIconUrl
 
 L.Icon.Default.mergeOptions({
@@ -17,7 +18,7 @@ L.Icon.Default.mergeOptions({
 let map = null
 let markers = new Map()
 let pollingTimer = null
-let isPolling = true
+const isPolling = ref(false)
 const selectedPosition = ref(null)
 let selectedMarker = null
 
@@ -36,25 +37,13 @@ const selectedIcon = L.icon({
   iconAnchor: [12, 41]
 })
 
-// 點位資訊
-function buildPopupContent(event) {  
-  return `
-    <div>
-      <div><strong>${event.label}</strong></div>
-      <div>UID: ${event.uid}</div>
-      <div>Type: ${event.type}</div>
-      <div>Status: ${event.status}</div>
-      <div>Lat: ${event.lat}</div>
-      <div>Lon: ${event.lon}</div>
-    </div>
-  `
-}
+
 
 
 // 清除"舊"標記
 function clearMarkers() {
   markers.forEach(marker => map.removeLayer(marker))
-  markers = []
+  markers.clear()
 }
 
 // 事件渲染，遍歷"markers"中所有的點並加到map上
@@ -66,15 +55,19 @@ function renderEvents(events) {
     nextKeys.add(key)
 
     if (!markers.has(key)) {
-      const marker = L.marker([event.lat, event.lon])
+      const marker = L.marker([event.lat, event.lon], {
+          icon: defaultIcon
+        })
         .addTo(map)
-        .bindPopup(buildPopupContent(event))
+        .bindPopup(buildPopupContent(event, 'event'))
 
       markers.set(key, marker)
     } else {
       const marker = markers.get(key)
-      marker.setLatLng([event.lat, event.lon])
-      marker.setPopupContent(buildPopupContent(event))
+      marker.setLatLng([event.lat, event.lon], {
+        icon: defaultIcon
+      })
+      marker.bindPopup(buildPopupContent(event, 'event'))
     }
   })
 
@@ -124,7 +117,8 @@ function startPolling() {
     refreshEvents()
   }, 5000)
 
-  isPolling = true
+  isPolling.value = true
+  console.log('[POLLING_START]')
 }
 
 function stopPolling() {
@@ -133,44 +127,21 @@ function stopPolling() {
     pollingTimer = null
   }
 
-  isPolling = false
+  isPolling.value = false
+  console.log('[POLLING_STOP]')
 }
 
 function togglePolling() {
-  if (isPolling) {
+  console.log('[TOGGLE_POLLING_BEFORE]', isPolling.value, pollingTimer)
+
+  if (isPolling.value) {
     stopPolling()
   } else {
     startPolling()
   }
+
+  console.log('[TOGGLE_POLLING_AFTER]', isPolling.value, pollingTimer)
 }
-
-
-// ===============================
-// Feature: Map Click Selection
-// ===============================
-// 功能：使用者可透過點擊地圖選定事件位置
-//
-// State:
-// - selectedPosition: 當前選取的經緯度
-// - selectedMarker: 地圖上的暫時選點 marker
-//
-// Rules:
-// 1. 同時間只允許一個 selectedMarker
-// 2. 點擊新位置會替換舊的 selectedMarker
-// 3. selectedMarker 不屬於正式 events（不進 renderEvents）
-// 4. createEvent 時會使用 selectedPosition
-// 5. 建立成功後需清除 selectedMarker（或重置）
-//
-// Trigger:
-// - map.on('click') → 更新 selectedPosition / selectedMarker
-// - toolbar "create" → 使用 selectedPosition 呼叫 createEvent
-// ===============================
-
-// Selected Marker Lifecycle
-// 1. click map → 建立 selectedMarker
-// 2. selectedMarker 作為 createEvent 的座標來源（可選）
-// 3. 若 createEvent 使用 selectedPosition → 清除 selectedMarker
-// 4. 若 createEvent 未使用 selectedPosition → 保留 selectedMarker
 
 // 如果有舊的SelectedMarker，清除
 function clearSelectedMarker() {
@@ -186,7 +157,7 @@ function renderSelectedMarker(pos) {
 
   selectedMarker = L.marker([pos.lat, pos.lon], {
     icon: selectedIcon
-  }).addTo(map)
+  }).addTo(map).bindPopup(buildPopupContent(pos, 'selected'))
 }
 
 
@@ -208,7 +179,7 @@ onMounted(async () => {
   })
   
   await refreshEvents()
-  startPolling()
+  //startPolling()
 })
 
 onBeforeUnmount(() => {
@@ -219,18 +190,32 @@ function handleUseSelectedPosition() {
   if (!selectedPosition.value) return
 
 }
-
+/*
+Interaction rules:
+1. Map click -> update selectedPosition
+2. Use selected -> copy selectedPosition into form
+3. Create event -> call API and refresh markers
+4. If source is selected -> clear selectedPosition
+*/
 </script>
 
 <template>
   <div class="map-wrapper">
     <MapToolbar
       :selected-position="selectedPosition"
-      @use-selected="handleUseSelectedPosition"
+      :is-polling="isPolling"
+      @refresh-events="refreshEvents"
+      @toggle-polling="togglePolling"
       @create-event="handleCreateEvent"
     />
     <div id="map"></div>
-    
+    <div class="debug-panel">
+    <div><strong>Debug</strong></div>
+    <div>selectedPosition: {{ selectedPosition ? `${selectedPosition.lat}, ${selectedPosition.lon}` : 'null' }}</div>
+    <div>selectedMarker: {{ !!selectedMarker }}</div>
+    <div>markerCount: {{ markers.size }}</div>
+    <div>polling: {{ isPolling ? 'on' : 'off' }}</div>
+  </div>
   </div>
 </template>
 
@@ -247,5 +232,17 @@ body,
 
 .map-wrapper {
   position: relative;
+}
+.debug-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

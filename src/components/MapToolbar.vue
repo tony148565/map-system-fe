@@ -8,6 +8,10 @@ const props = defineProps({
   selectedPosition: {
     type: Object,
     default: null
+  },
+  isPolling: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -29,6 +33,8 @@ const form = ref({
   label: ''
 })
 
+const usingSelectedPosition = ref(false)
+
 function toggleToolbar() {
   isCollapsed.value = !isCollapsed.value
 }
@@ -38,6 +44,7 @@ function handleRefresh() {
 }
 
 function handleTogglePolling() {
+  console.log('[TOOLBAR_EMIT_TOGGLE_POLLING]')
   emit('toggle-polling')
 }
 
@@ -49,7 +56,7 @@ function handleCreateEvent() {
     lon: Number(form.value.lon),
     status: form.value.status,
     label: form.value.label,
-    source: props.selectedPosition ? 'selected' : 'manual'
+    source: usingSelectedPosition.value ? 'selected' : 'manual'
   }
 
   emit('create-event', payload)
@@ -62,6 +69,8 @@ function handleCreateEvent() {
     status: 'active',
     label: ''
   }
+
+  usingSelectedPosition.value = false
 }
 
 function useSelectedPosition() {
@@ -69,6 +78,8 @@ function useSelectedPosition() {
 
   form.value.lat = formatCoordinate(props.selectedPosition.lat)
   form.value.lon = formatCoordinate(props.selectedPosition.lon)
+  usingSelectedPosition.value = true
+
   emit('use-selected')
 }
 
@@ -83,7 +94,9 @@ function useSelectedPosition() {
 
     <div v-if="!isCollapsed" class="toolbar-content">
       <button @click="handleRefresh">重新抓取事件</button>
-      <button @click="handleTogglePolling">切換 Polling</button>
+      <button @click="handleTogglePolling">
+        {{ props.isPolling ? '停止輪詢' : '開始輪詢' }}
+      </button>
       <button @click="useSelectedPosition">使用選點</button>
       <div style="text-align: left;" v-if="props.selectedPosition">
         lat:
