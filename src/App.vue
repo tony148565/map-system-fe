@@ -21,6 +21,8 @@ let pollingTimer = null
 const isPolling = ref(false)
 const selectedPosition = ref(null)
 let selectedMarker = null
+const activeEvent = ref(null)
+
 
 // marker icon
 const defaultIcon = L.icon({
@@ -40,12 +42,6 @@ const selectedIcon = L.icon({
 
 
 
-// 清除"舊"標記
-function clearMarkers() {
-  markers.forEach(marker => map.removeLayer(marker))
-  markers.clear()
-}
-
 // 事件渲染，遍歷"markers"中所有的點並加到map上
 function renderEvents(events) {
   const nextKeys = new Set()
@@ -61,6 +57,9 @@ function renderEvents(events) {
         .addTo(map)
         .bindPopup(buildPopupContent(event, 'event'))
 
+        marker.on('click', () => {
+          handleEventMarkerClick(event)
+        })
       markers.set(key, marker)
     } else {
       const marker = markers.get(key)
@@ -68,6 +67,10 @@ function renderEvents(events) {
         icon: defaultIcon
       })
       marker.bindPopup(buildPopupContent(event, 'event'))
+
+      marker.on('click', () => {
+          handleEventMarkerClick(event)
+      })
     }
   })
 
@@ -158,6 +161,10 @@ function renderSelectedMarker(pos) {
   selectedMarker = L.marker([pos.lat, pos.lon], {
     icon: selectedIcon
   }).addTo(map).bindPopup(buildPopupContent(pos, 'selected'))
+  selectedMarker.on('click', () => {
+    handleEventMarkerClick(event)
+  })
+
 }
 
 
@@ -174,21 +181,32 @@ onMounted(async () => {
       lon: e.latlng.lng
     }
     renderSelectedMarker(selectedPosition.value)
-
+    
 
   })
   
   await refreshEvents()
-  //startPolling()
 })
 
 onBeforeUnmount(() => {
   stopPolling()
 })
 
-function handleUseSelectedPosition() {
-  if (!selectedPosition.value) return
 
+function handleEventMarkerClick(event) {
+  console.log('[EVENT_CLICK]', event.uid)
+  activeEvent.value = { ...event }
+}
+
+
+function handleUpdateEvent(event){
+  console.log('[EVENT_CLICK] update', event.uid)
+  // TODO: call update API and refresh markers
+}
+
+function handleDeleteEvent(uid){
+  console.log('[EVENT_CLICK] delete', uid)
+  // TODO: call update API and refresh markers
 }
 /*
 Interaction rules:
@@ -202,11 +220,13 @@ Interaction rules:
 <template>
   <div class="map-wrapper">
     <MapToolbar
-      :selected-position="selectedPosition"
+      :active-event="activeEvent"
       :is-polling="isPolling"
       @refresh-events="refreshEvents"
       @toggle-polling="togglePolling"
       @create-event="handleCreateEvent"
+      @update-event="handleUpdateEvent"
+      @delete-event="handleDeleteEvent"
     />
     <div id="map"></div>
     <div class="debug-panel">

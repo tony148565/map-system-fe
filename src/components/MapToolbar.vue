@@ -12,6 +12,10 @@ const props = defineProps({
   isPolling: {
     type: Boolean,
     default: false
+  },
+  activeEvent: {
+    type: Object,
+    default: null
   }
 })
 
@@ -19,7 +23,8 @@ const emit = defineEmits([
   'refresh-events',
   'toggle-polling',
   'create-event',
-  'use-selected'
+  'update-event',
+  'delete-event'
 ])
 
 const isCollapsed = ref(false)
@@ -83,7 +88,13 @@ function useSelectedPosition() {
   emit('use-selected')
 }
 
+function handleUpdate() {
+  emit('update-event', props.activeEvent)
+}
 
+function handleDelete() {
+  emit('delete-event', props.activeEvent.uid)
+}
 </script>
 
 <template>
@@ -105,7 +116,7 @@ function useSelectedPosition() {
         lon:
         {{ formatCoordinate(props.selectedPosition.lon) }}
       </div>
-
+      
       <input v-model="form.uid" placeholder="UID" />
       <input v-model="form.label" placeholder="Label" />
       <input v-model="form.lat" placeholder="Latitude" />
@@ -123,6 +134,12 @@ function useSelectedPosition() {
       </select>
 
       <button @click="handleCreateEvent">建立事件</button>
+      <div v-if="activeEvent">
+        <div>Edit Mode: {{ activeEvent.uid }}</div>
+
+        <button @click="handleUpdate">Update</button>
+        <button @click="handleDelete">Delete</button>
+      </div>
     </div>
   </div>
 </template>
