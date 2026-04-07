@@ -16,7 +16,11 @@ const props = defineProps({
   isPolling: {
     type: Boolean,
     default: false
-  }
+  },
+  createSuccessVersion: {
+    type: Number,
+    default: 0
+}
 })
 
 const emit = defineEmits([
@@ -48,7 +52,12 @@ watch(
   }
 )
 
-
+watch(
+  () => props.createSuccessVersion,
+  () => {
+    resetForm()
+  }
+)
 
 function toggleToolbar() {
   isCollapsed.value = !isCollapsed.value
@@ -64,6 +73,27 @@ function handleTogglePolling() {
 }
 
 function handleCreateEvent() {
+
+
+  if (!form.value.uid || form.value.uid.trim() === '') {
+    alert('UID is required')
+    return
+  }
+
+  if (!form.value.lat || !form.value.lon) {
+    alert('Latitude and Longitude are required')
+    return
+  }
+
+  if (form.value.lat < -90 || form.value.lat > 90) {
+    alert('Latitude must be between -90 and 90')
+    return
+  }
+
+  if (form.value.lon < -180 || form.value.lon > 180) {
+    alert('Longitude must be between -180 and 180')
+    return
+  }
   const payload = {
     uid: form.value.uid,
     type: form.value.type,
@@ -75,7 +105,6 @@ function handleCreateEvent() {
   }
 
   emit('create-event', payload)
-  resetForm()
 }
 
 function useSelectedPosition() {

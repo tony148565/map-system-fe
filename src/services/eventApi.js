@@ -13,33 +13,21 @@ export async function fetchEvents() {
 export async function createEvent(eventData) {
   const response = await fetch(`${BASE_URL}/events`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(eventData)
   })
 
-  if (!response.ok) {
-    throw new Error(`Failed to create event: ${response.status}`)
-  }
-
-  return await response.json()
+  return await parseResponse(response)
 }
 
 export async function updateEvent(uid, eventData) {
   const response = await fetch(`${BASE_URL}/events/${encodeURIComponent(uid)}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(eventData)
   })
 
-  if (!response.ok) {
-    throw new Error(`Failed to update event: ${response.status}`)
-  }
-
-  return await response.json()
+  return await parseResponse(response)
 }
 
 export async function deleteEvent(uid) {
@@ -47,9 +35,18 @@ export async function deleteEvent(uid) {
     method: 'DELETE'
   })
 
+  return await parseResponse(response)
+}
+
+async function parseResponse(response) {
+  const data = await response.json().catch(() => ({}))
+
   if (!response.ok) {
-    throw new Error(`Failed to delete event: ${response.status}`)
+    throw {
+      status: response.status,
+      data
+    }
   }
 
-  return await response.json()
+  return data
 }

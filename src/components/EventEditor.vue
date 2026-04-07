@@ -41,11 +41,43 @@ watch(
 )
 
 function handleUpdate() {
+  const uid = form.value.uid.trim()
+  const latRaw = String(form.value.lat).trim()
+  const lonRaw = String(form.value.lon).trim()
+
+  if (!uid) {
+    alert('UID is required')
+    return
+  }
+
+  if (!latRaw || !lonRaw) {
+    alert('Latitude and Longitude are required')
+    return
+  }
+
+  const lat = Number(latRaw)
+  const lon = Number(lonRaw)
+
+  if (Number.isNaN(lat) || Number.isNaN(lon)) {
+    alert('Latitude and Longitude must be valid numbers')
+    return
+  }
+
+  if (lat < -90 || lat > 90) {
+    alert('Latitude must be between -90 and 90')
+    return
+  }
+
+  if (lon < -180 || lon > 180) {
+    alert('Longitude must be between -180 and 180')
+    return
+  }
+
   emit('update-event', {
     uid: form.value.uid,
     type: form.value.type,
-    lat: Number(form.value.lat),
-    lon: Number(form.value.lon),
+    lat: lat,
+    lon: lon,
     status: form.value.status,
     label: form.value.label
   })

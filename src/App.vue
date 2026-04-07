@@ -5,7 +5,6 @@ import 'leaflet/dist/leaflet.css'
 import { fetchEvents, createEvent, updateEvent, deleteEvent } from './services/eventApi'
 import MapToolbar from './components/MapToolbar.vue'
 import EventEditor from './components/EventEditor.vue'
-//import { formatCoordinate } from './utils/coordinate'
 import { buildPopupContent } from './utils/popup'
 delete L.Icon.Default.prototype._getIconUrl
 
@@ -22,11 +21,17 @@ let pollingTimer = null
 let selectedMarker = null
 let pendingMarker = null
 
+
 const isPolling = ref(false)
+// selectedPosition: 使用者最後點擊的地圖位置（橘色 marker）
+// pendingPosition: 使用者按「使用選點」後凍結的位置（綠色 marker）
+// inspectedEvent: 使用者點擊 marker 後，目前查看的 event
+// editingEvent: 使用者進入編輯模式的 event
 const selectedPosition = ref(null)
 const pendingPosition = ref(null)
 const inspectedEvent = ref(null)
 const editingEvent = ref(null)
+const createSuccessVersion = ref(0)
 
 // marker icon
 const defaultIcon = L.icon({
@@ -134,43 +139,24 @@ function renderEvents(events) {
       const marker = L.marker([event.lat, event.lon])
         .setIcon(defaultIcon)
         .addTo(map)
-        .bindPopup(buildPopupContent(event, 'event'))
 
       marker._eventData = event
+      marker.bindPopup(buildPopupContent(event, 'event'))
 
       marker.on('click', () => {
         handleEventMarkerClick(marker._eventData)
       })
 
+      bindPopupActions(marker)
       markers.set(key, marker)
     } else {
       const marker = markers.get(key)
+
+      marker._eventData = event
       marker.setLatLng([event.lat, event.lon]).setIcon(defaultIcon)
       marker.bindPopup(buildPopupContent(event, 'event'))
 
-      marker.on('popupopen', (e) => {
-        const container = e.popup.getElement()
-
-        if (!container) return
-
-        const editBtn = container.querySelector('.popup-edit-btn')
-        const deleteBtn = container.querySelector('.popup-delete-btn')
-
-        if (editBtn) {
-          editBtn.addEventListener('click', () => {
-            handleEnterEditMode(event)
-          })
-        }
-
-        if (deleteBtn) {
-          deleteBtn.addEventListener('click', async () => {
-            if (!confirm('Delete this event?')) return
-            await deleteEvent(event.uid)
-            await refreshEvents()
-          })
-        }
-      })
-      marker._eventData = event
+      bindPopupActions(marker)
     }
   })
 
@@ -181,6 +167,10 @@ function renderEvents(events) {
 
       if (editingEvent.value?.uid === key) {
         editingEvent.value = null
+      }
+
+      if (inspectedEvent.value?.uid === key) {
+        inspectedEvent.value = null
       }
     }
   }
@@ -256,10 +246,14 @@ async function handleCreateEvent(eventData) {
       clearSelectedMarker()
       selectedPosition.value = null
     }
-
+    createSuccessVersion.value++
     await refreshEvents()
   } catch (error) {
-    console.error('Error creating event:', error)
+    if (error.status === 400 || error.status === 409) {
+      alert(error.data?.error || 'Invalid input')
+    } else {
+      alert('Create failed')
+    }
   }
 }
 
@@ -274,16 +268,6 @@ function handleEnterEditMode(event) {
 
 function handleCancelEdit() {
   editingEvent.value = null
-}
-
-function handleUpdateEvent(event){
-  console.log('[EVENT_CLICK] update', event.uid)
-  // TODO: call update API and refresh markers
-}
-
-function handleDeleteEvent(uid){
-  console.log('[EVENT_CLICK] delete', uid)
-  // TODO: call update API and refresh markers
 }
 
 function handleUseSelectedPosition() {
@@ -307,7 +291,11 @@ async function handleUpdateEditingEvent(updatedData) {
 
     await refreshEvents()
   } catch (error) {
-    console.error('Error updating event:', error)
+    if (error.status === 400) {
+      alert(error.data?.error || 'Invalid input')
+    } else {
+      alert('Update failed')
+    }
   }
 }
 
@@ -325,7 +313,7 @@ async function handleDeleteEditingEvent(uid) {
 
     await refreshEvents()
   } catch (error) {
-    console.error('Error deleting event:', error)
+    alert('Delete failed')
   }
 }
 /*
@@ -335,6 +323,34 @@ Interaction rules:
 3. Create event -> call API and refresh markers
 4. If source is selected -> clear selectedPosition
 */
+// binding method
+function bindPopupActions(marker) {
+  marker.off('popupopen')
+
+  marker.on('popupopen', (e) => {
+    const container = e.popup.getElement()
+    if (!container) return
+
+    const eventData = marker._eventData
+    const editBtn = container.querySelector('.popup-edit-btn')
+    const deleteBtn = container.querySelector('.popup-delete-btn')
+
+    if (editBtn) {
+      editBtn.onclick = () => {
+        handleEnterEditMode(eventData)
+      }
+    }
+
+    if (deleteBtn) {
+      deleteBtn.onclick = async () => {
+        if (!confirm('Delete this event?')) return
+        await handleDeleteEditingEvent(eventData.uid)
+      }
+    }
+  })
+}
+
+
 </script>
 
 <template>
@@ -343,6 +359,7 @@ Interaction rules:
       :selected-position="selectedPosition"
       :pending-position="pendingPosition"
       :is-polling="isPolling"
+      :create-success-version="createSuccessVersion"
       @use-selected="handleUseSelectedPosition"
       @refresh-events="refreshEvents"
       @toggle-polling="togglePolling"
