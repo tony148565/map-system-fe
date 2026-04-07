@@ -9,13 +9,13 @@ const props = defineProps({
     type: Object,
     default: null
   },
+  pendingPosition: {
+    type: Object,
+    default: null
+  },
   isPolling: {
     type: Boolean,
     default: false
-  },
-  activeEvent: {
-    type: Object,
-    default: null
   }
 })
 
@@ -23,8 +23,6 @@ const emit = defineEmits([
   'refresh-events',
   'toggle-polling',
   'create-event',
-  'update-event',
-  'delete-event',
   'use-selected'
 ])
 
@@ -39,26 +37,18 @@ const form = ref({
   label: ''
 })
 
-const usingSelectedPosition = ref(false)
-
 watch(
-  () => props.activeEvent,
-  (event) => {
-    if (!event) return
+  () => props.pendingPosition,
+  (pos) => {
+    if (!pos) return
 
-    form.value = {
-      uid: event.uid ?? '',
-      type: event.type ?? 'friendly',
-      lat: event.lat ?? '',
-      lon: event.lon ?? '',
-      status: event.status ?? 'active',
-      label: event.label ?? ''
-    }
-
-    usingSelectedPosition.value = false
-  },
-  { immediate: true }
+    resetForm()
+    form.value.lat = formatCoordinate(pos.lat)
+    form.value.lon = formatCoordinate(pos.lon)
+  }
 )
+
+
 
 function toggleToolbar() {
   isCollapsed.value = !isCollapsed.value
@@ -81,11 +71,19 @@ function handleCreateEvent() {
     lon: Number(form.value.lon),
     status: form.value.status,
     label: form.value.label,
-    source: usingSelectedPosition.value ? 'selected' : 'manual'
+    source: props.pendingPosition ? 'selected' : 'manual'
   }
 
   emit('create-event', payload)
+  resetForm()
+}
 
+function useSelectedPosition() {
+  if (!props.selectedPosition) return
+  emit('use-selected')
+}
+
+function resetForm() {
   form.value = {
     uid: '',
     type: 'friendly',
@@ -94,28 +92,6 @@ function handleCreateEvent() {
     status: 'active',
     label: ''
   }
-
-  usingSelectedPosition.value = false
-}
-
-function useSelectedPosition() {
-  if (!props.selectedPosition) return
-  console.log('[useSelectedPosition]')
-  form.value.lat = formatCoordinate(props.selectedPosition.lat)
-  form.value.lon = formatCoordinate(props.selectedPosition.lon)
-  usingSelectedPosition.value = true
-
-  emit('use-selected', props.activeEvent)
-}
-
-function handleUpdate() {
-  emit('update-event', {
-    ...form.value
-  })
-}
-
-function handleDelete() {
-  emit('delete-event', props.activeEvent.uid)
 }
 </script>
 
@@ -141,8 +117,8 @@ function handleDelete() {
       
       <input v-model="form.uid" placeholder="UID" />
       <input v-model="form.label" placeholder="Label" />
-      <input v-model="form.lat" placeholder="Latitude" @input="usingSelectedPosition = false"/>
-      <input v-model="form.lon" placeholder="Longitude" @input="usingSelectedPosition = false"/>
+      <input v-model="form.lat" placeholder="Latitude" />
+      <input v-model="form.lon" placeholder="Longitude" />
 
       <select v-model="form.type">
         <option value="friendly">friendly</option>
@@ -156,12 +132,6 @@ function handleDelete() {
       </select>
 
       <button @click="handleCreateEvent">建立事件</button>
-      <div v-if="activeEvent">
-        <div>Edit Mode: {{ activeEvent.uid }}</div>
-
-        <button @click="handleUpdate">Update</button>
-        <button @click="handleDelete">Delete</button>
-      </div>
     </div>
   </div>
 </template>

@@ -37,6 +37,21 @@ export function buildPopupContent(data, mode = 'event') {
           <span>${escapeHtml(value)}</span>
         </div>
       `).join('')}
+
+      ${
+        mode === 'event'
+          ? `
+          <div class="popup-actions">
+            <button class="popup-edit-btn" data-uid="${escapeHtml(data.uid)}">
+              Edit
+            </button>
+            <button class="popup-delete-btn" data-uid="${escapeHtml(data.uid)}">
+              Delete
+            </button>
+          </div>
+          `
+          : ''
+      }
     </div>
   `
 }

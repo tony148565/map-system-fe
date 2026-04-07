@@ -1,9 +1,10 @@
 <script setup>
-import { onMounted, onBeforeUnmount, ref} from 'vue'
+import { onMounted, onBeforeUnmount, ref, watch} from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { fetchEvents, createEvent } from './services/eventApi'
+import { fetchEvents, createEvent, updateEvent, deleteEvent } from './services/eventApi'
 import MapToolbar from './components/MapToolbar.vue'
+import EventEditor from './components/EventEditor.vue'
 //import { formatCoordinate } from './utils/coordinate'
 import { buildPopupContent } from './utils/popup'
 delete L.Icon.Default.prototype._getIconUrl
@@ -18,11 +19,14 @@ L.Icon.Default.mergeOptions({
 let map = null
 let markers = new Map()
 let pollingTimer = null
+let selectedMarker = null
+let pendingMarker = null
+
 const isPolling = ref(false)
 const selectedPosition = ref(null)
-let selectedMarker = null
-const activeEvent = ref(null)
-
+const pendingPosition = ref(null)
+const inspectedEvent = ref(null)
+const editingEvent = ref(null)
 
 // marker icon
 const defaultIcon = L.icon({
@@ -39,46 +43,19 @@ const selectedIcon = L.icon({
   iconAnchor: [12, 41]
 })
 
+const pendingIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41]
+})
 
 
+watch(editingEvent, (value) => {
+  document.body.style.overflow = value ? 'hidden' : ''
+})
 
-// 事件渲染，遍歷"markers"中所有的點並加到map上
-function renderEvents(events) {
-  const nextKeys = new Set()
-
-  events.forEach(event => {
-    const key = event.uid
-    nextKeys.add(key)
-
-    if (!markers.has(key)) {
-      const marker = L.marker([event.lat, event.lon])
-        .setIcon(defaultIcon)
-        .addTo(map)
-        .bindPopup(buildPopupContent(event, 'event'))
-
-      marker._eventData = event
-
-      marker.on('click', () => {
-        handleEventMarkerClick(marker._eventData)
-      })
-
-      markers.set(key, marker)
-    } else {
-      const marker = markers.get(key)
-      marker.setLatLng([event.lat, event.lon]).setIcon(defaultIcon)
-      marker.bindPopup(buildPopupContent(event, 'event'))
-      marker._eventData = event
-    }
-  })
-
-  for (const [key, marker] of markers.entries()) {
-    if (!nextKeys.has(key)) {
-      map.removeLayer(marker)
-      markers.delete(key)
-    }
-  }
-}
-
+// about map update
 // 事件更新
 function updateEvents(newEvents) {
   renderEvents(newEvents)
@@ -91,22 +68,6 @@ async function refreshEvents() {
     updateEvents(newEvents)
   } catch (error) {
     console.error('Error fetching events:', error)
-  }
-}
-
-// 接從MapToolbar來的data
-async function handleCreateEvent(eventData) {
-  try {
-    await createEvent(eventData)
-
-    if (eventData.source === 'selected') {
-      clearSelectedMarker()
-      selectedPosition.value = null
-    }
-
-    await refreshEvents()
-  } catch (error) {
-    console.error('Error creating event:', error)
   }
 }
 
@@ -143,11 +104,85 @@ function togglePolling() {
   console.log('[TOGGLE_POLLING_AFTER]', isPolling.value, pollingTimer)
 }
 
+// clear method
 // 如果有舊的SelectedMarker，清除
 function clearSelectedMarker() {
   if (selectedMarker) {
     map.removeLayer(selectedMarker)
     selectedMarker = null
+  }
+}
+
+function clearPendingMarker() {
+  if (pendingMarker) {
+    map.removeLayer(pendingMarker)
+    pendingMarker = null
+  }
+}
+
+// render method
+
+// 事件渲染，遍歷"markers"中所有的點並加到map上
+function renderEvents(events) {
+  const nextKeys = new Set()
+
+  events.forEach(event => {
+    const key = event.uid
+    nextKeys.add(key)
+
+    if (!markers.has(key)) {
+      const marker = L.marker([event.lat, event.lon])
+        .setIcon(defaultIcon)
+        .addTo(map)
+        .bindPopup(buildPopupContent(event, 'event'))
+
+      marker._eventData = event
+
+      marker.on('click', () => {
+        handleEventMarkerClick(marker._eventData)
+      })
+
+      markers.set(key, marker)
+    } else {
+      const marker = markers.get(key)
+      marker.setLatLng([event.lat, event.lon]).setIcon(defaultIcon)
+      marker.bindPopup(buildPopupContent(event, 'event'))
+
+      marker.on('popupopen', (e) => {
+        const container = e.popup.getElement()
+
+        if (!container) return
+
+        const editBtn = container.querySelector('.popup-edit-btn')
+        const deleteBtn = container.querySelector('.popup-delete-btn')
+
+        if (editBtn) {
+          editBtn.addEventListener('click', () => {
+            handleEnterEditMode(event)
+          })
+        }
+
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', async () => {
+            if (!confirm('Delete this event?')) return
+            await deleteEvent(event.uid)
+            await refreshEvents()
+          })
+        }
+      })
+      marker._eventData = event
+    }
+  })
+
+  for (const [key, marker] of markers.entries()) {
+    if (!nextKeys.has(key)) {
+      map.removeLayer(marker)
+      markers.delete(key)
+
+      if (editingEvent.value?.uid === key) {
+        editingEvent.value = null
+      }
+    }
   }
 }
 
@@ -162,7 +197,23 @@ function renderSelectedMarker(pos) {
 
 }
 
+function renderPendingMarker(pos) {
+  if (!pos) return
 
+  if (!pendingMarker) {
+    pendingMarker = L.marker([pos.lat, pos.lon])
+      .setIcon(pendingIcon)
+      .addTo(map)
+      .bindPopup(buildPopupContent(pos, 'selected'))
+  } else {
+    pendingMarker
+      .setLatLng([pos.lat, pos.lon])
+      .setIcon(pendingIcon)
+      .bindPopup(buildPopupContent(pos, 'selected'))
+  }
+}
+
+//
 onMounted(async () => {
   map = L.map('map').setView([24.1477, 120.6736], 13)
 
@@ -185,14 +236,45 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopPolling()
+  clearSelectedMarker()
+  clearPendingMarker()
+  document.body.style.overflow = ''
 })
 
 
-function handleEventMarkerClick(event) {
-  console.log('[EVENT_CLICK]', event.uid)
-  activeEvent.value = { ...event }
+// handle method
+
+// 接從MapToolbar來的data
+async function handleCreateEvent(eventData) {
+  try {
+    await createEvent(eventData)
+
+    pendingPosition.value = null
+    clearPendingMarker()
+
+    if (eventData.source === 'selected') {
+      clearSelectedMarker()
+      selectedPosition.value = null
+    }
+
+    await refreshEvents()
+  } catch (error) {
+    console.error('Error creating event:', error)
+  }
 }
 
+function handleEventMarkerClick(event) {
+  console.log('[EVENT_CLICK]', event.uid)
+  inspectedEvent.value = { ...event }
+}
+
+function handleEnterEditMode(event) {
+  editingEvent.value = { ...event }
+}
+
+function handleCancelEdit() {
+  editingEvent.value = null
+}
 
 function handleUpdateEvent(event){
   console.log('[EVENT_CLICK] update', event.uid)
@@ -206,6 +288,45 @@ function handleDeleteEvent(uid){
 
 function handleUseSelectedPosition() {
   if (!selectedPosition.value) return
+
+  pendingPosition.value = { ...selectedPosition.value }
+  renderPendingMarker(pendingPosition.value)
+}
+
+async function handleUpdateEditingEvent(updatedData) {
+  try {
+    await updateEvent(updatedData.uid, updatedData)
+
+    if (editingEvent.value?.uid === updatedData.uid) {
+      editingEvent.value = null
+    }
+
+    if (inspectedEvent.value?.uid === updatedData.uid) {
+      inspectedEvent.value = { ...updatedData }
+    }
+
+    await refreshEvents()
+  } catch (error) {
+    console.error('Error updating event:', error)
+  }
+}
+
+async function handleDeleteEditingEvent(uid) {
+  try {
+    await deleteEvent(uid)
+
+    if (editingEvent.value?.uid === uid) {
+      editingEvent.value = null
+    }
+
+    if (inspectedEvent.value?.uid === uid) {
+      inspectedEvent.value = null
+    }
+
+    await refreshEvents()
+  } catch (error) {
+    console.error('Error deleting event:', error)
+  }
 }
 /*
 Interaction rules:
@@ -220,20 +341,25 @@ Interaction rules:
   <div class="map-wrapper">
     <MapToolbar
       :selected-position="selectedPosition"
-      :active-event="activeEvent"
+      :pending-position="pendingPosition"
       :is-polling="isPolling"
       @use-selected="handleUseSelectedPosition"
       @refresh-events="refreshEvents"
       @toggle-polling="togglePolling"
       @create-event="handleCreateEvent"
-      @update-event="handleUpdateEvent"
-      @delete-event="handleDeleteEvent"
+    />
+    <EventEditor
+      v-if="editingEvent"
+      :event-data="editingEvent"
+      @update-event="handleUpdateEditingEvent"
+      @delete-event="handleDeleteEditingEvent"
+      @cancel-edit="handleCancelEdit"
     />
     <div id="map"></div>
     <div class="debug-panel">
     <div><strong>Debug</strong></div>
-    <div>selectedPosition: {{ selectedPosition ? `${selectedPosition.lat}, ${selectedPosition.lon}` : 'null' }}</div>
-    <div>selectedMarker: {{ !!selectedMarker }}</div>
+    <div>inspectedEvent: {{ inspectedEvent ? inspectedEvent.uid : 'null' }}</div>
+    <div>editingEvent: {{ editingEvent ? editingEvent.uid : 'null' }}</div>
     <div>markerCount: {{ markers.size }}</div>
     <div>polling: {{ isPolling ? 'on' : 'off' }}</div>
   </div>
