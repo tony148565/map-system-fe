@@ -373,7 +373,7 @@ function bindPopupActions(marker) {
       @cancel-edit="handleCancelEdit"
     />
     <div id="map"></div>
-    <div class="debug-panel">
+    <div class="debug-panel" visibility: hidden>
     <div><strong>Debug</strong></div>
     <div>inspectedEvent: {{ inspectedEvent ? inspectedEvent.uid : 'null' }}</div>
     <div>editingEvent: {{ editingEvent ? editingEvent.uid : 'null' }}</div>

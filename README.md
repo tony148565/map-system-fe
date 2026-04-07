@@ -1,5 +1,13 @@
-# Vue 3 + Vite
+# Map Event System
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+基於地圖的事件管理系統，提供直覺的事件操作與視覺化呈現。
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+- 支援表單輸入與地圖選點建立事件
+- 點擊標記查看事件資訊（popup）
+- 使用彈出視窗進行事件編輯與刪除
+
+![demo2](./img/display-2.png)
+
+![demo1](./img/display-1.png)
+
+*地圖操作包含建立、查看（popup）與編輯（modal）*
